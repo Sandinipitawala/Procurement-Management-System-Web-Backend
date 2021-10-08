@@ -159,18 +159,4 @@ public class OrderController {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
     }
-
-//    @PutMapping("/orders/{id}")
-//    public ResponseEntity<Order> updateOrderDeliveredStatus(@PathVariable("id") String id) {
-//        Optional<Order> orderData = orderRepository.findById(id);
-//
-//        if(orderData.isPresent()) {
-//            Order _order = orderData.get();
-//            _order.setStatus("Delivered");
-//
-//            return new ResponseEntity<>(orderRepository.save(_order), HttpStatus.OK);
-//        } else {
-//            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-//        }
-//    }
 }
