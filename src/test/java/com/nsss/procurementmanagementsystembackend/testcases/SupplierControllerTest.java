@@ -28,12 +28,6 @@ public class SupplierControllerTest {
     public void addSupplierTestCase() {
 
         Supplier supplier = new Supplier("Supplier A", "0712300000", "Flower rd", "Kandy", "available");
-
-        supplier.setName("Supplier A");
-        supplier.setMobile("0712300000");
-        supplier.setAddress("Flower rd");
-        supplier.setCity("Kandy");
-        supplier.setStatus("available");
         assertNotNull(supplierRepository.save(supplier));
     }
 

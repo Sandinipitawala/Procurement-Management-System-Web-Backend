@@ -1,27 +1,35 @@
 package com.nsss.procurementmanagementsystembackend.controller;
 
+import com.nsss.procurementmanagementsystembackend.constant.Constants;
 import com.nsss.procurementmanagementsystembackend.model.Material;
 import com.nsss.procurementmanagementsystembackend.model.Order;
 import com.nsss.procurementmanagementsystembackend.model.OrderItem;
-import com.nsss.procurementmanagementsystembackend.model.Site;
 import com.nsss.procurementmanagementsystembackend.repository.MaterialRepository;
 import com.nsss.procurementmanagementsystembackend.repository.OrderRepository;
 import com.nsss.procurementmanagementsystembackend.repository.SiteRepository;
 import com.nsss.procurementmanagementsystembackend.repository.SupplierRepository;
 import com.nsss.procurementmanagementsystembackend.request.OrderRequest;
 import com.nsss.procurementmanagementsystembackend.response.MessageResponse;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+import javax.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import javax.validation.Valid;
-import java.util.*;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
-@RequestMapping("/api/access")
+@RequestMapping(Constants.RequestMapping.REQUEST_MAPPING)
 public class OrderController {
+    public static final Logger logger = LoggerFactory.getLogger(OrderController.class);
+
     @Autowired
     OrderRepository orderRepository;
 
@@ -34,129 +42,211 @@ public class OrderController {
     @Autowired
     SiteRepository siteRepository;
 
-    @GetMapping("/orders")
+    @GetMapping(Constants.RequestMapping.ORDERS)
     public ResponseEntity<List<Order>> getAllOrders() {
         try {
-            List<Order> orders = new ArrayList<Order>();
 
-            orderRepository.findAll().forEach(orders::add);
+            List<Order> orders = new ArrayList<>(orderRepository.findAll());
 
             if (orders.isEmpty()) {
                 return new ResponseEntity<>(HttpStatus.NO_CONTENT);
             }
 
             return new ResponseEntity<>(orders, HttpStatus.OK);
+        } catch (HttpClientErrorException e) {
+            logger.error("Client Side Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.METHOD_NOT_ALLOWED);
+        } catch (HttpServerErrorException e) {
+            logger.error("Server Side Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
+            logger.error("General Exception", e);
             return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    @GetMapping("/orders/pending")
+    @GetMapping(Constants.RequestMapping.PENDING_ORDERS)
     public ResponseEntity<List<Order>> getAllPendingOrders() {
         try {
-            List<Order> orders = new ArrayList<>(orderRepository.findAllByStatusEquals("Pending"));
+            List<Order> orders = new ArrayList<>(orderRepository.findAllByStatusEquals(Constants.Status.PENDING));
 
             if (orders.isEmpty()) {
                 return new ResponseEntity<>(HttpStatus.NO_CONTENT);
             }
 
             return new ResponseEntity<>(orders, HttpStatus.OK);
+        } catch (HttpClientErrorException e) {
+            logger.error("Client Side Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.METHOD_NOT_ALLOWED);
+        } catch (HttpServerErrorException e) {
+            logger.error("Server Side Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
+            logger.error("General Exception", e);
             return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    @PostMapping("/orders")
+    @PostMapping(Constants.RequestMapping.ORDERS)
     public ResponseEntity<?> addOrder(@Valid @RequestBody OrderRequest orderRequest){
-        Material material = materialRepository.findMaterialByName(orderRequest.getItem()).get();
-        double quantity = orderRequest.getQuantity();
+        try {
+            //getting the material object related to the name passed in the request
+            Material material = materialRepository.findMaterialByName(orderRequest.getItem()).get();
+            double quantity = orderRequest.getQuantity();
 
-        OrderItem orderItem = new OrderItem(material, quantity);
-        double total = material.getPrice()*quantity;
+            OrderItem orderItem = new OrderItem(material, quantity);
+            //calculating the total amount by multiplying the price of a material by the required quantity
+            double total = material.getPrice()*quantity;
 
-        Order order = new Order(
-                orderItem,
-                supplierRepository.findSupplierByName(orderRequest.getSupplier()).get(),
-                "Pending",
-                total,
-                orderRequest.getComment(),
-                new Date(),
-                orderRequest.getDeliveryDate(),
-                siteRepository.findSiteByName(orderRequest.getSite()).get()
-        );
+            Order order = new Order(
+                    orderItem,
+                    supplierRepository.findSupplierByName(orderRequest.getSupplier()).get(),
+                    Constants.Status.PENDING,
+                    total,
+                    orderRequest.getComment(),
+                    new Date(),
+                    orderRequest.getDeliveryDate(),
+                    siteRepository.findSiteByName(orderRequest.getSite()).get()
+            );
 
-        orderRepository.save(order);
+            orderRepository.save(order);
 
-        return ResponseEntity.ok(new MessageResponse("Order created successfully"));
-    }
+            return ResponseEntity.ok(new MessageResponse(Constants.Message.ORDER_CREATED_SUCCESSFULLY));
 
-    @PutMapping("/orders/approved/{id}")
-    public ResponseEntity<Order> updateOrderApprovedStatus(@PathVariable("id") String id) {
-        Optional<Order> orderData = orderRepository.findById(id);
-
-        if(orderData.isPresent()) {
-            Order _order = orderData.get();
-            _order.setStatus("Approved");
-
-            return new ResponseEntity<>(orderRepository.save(_order), HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        } catch (HttpClientErrorException e) {
+            logger.error("Client Side Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.METHOD_NOT_ALLOWED);
+        } catch (HttpServerErrorException e) {
+            logger.error("Server Side Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+        } catch (Exception e) {
+            logger.error("General Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    @PutMapping("/orders/hold/{id}")
-    public ResponseEntity<Order> updateOrderHoldStatus(@PathVariable("id") String id) {
-        Optional<Order> orderData = orderRepository.findById(id);
+    @PutMapping(Constants.RequestMapping.APPROVED_ORDERS_ID)
+    public ResponseEntity<Order> updateOrderApprovedStatus(@PathVariable(Constants.Common.ID) String id) {
+        try {
+            Optional<Order> orderData = orderRepository.findById(id);
 
-        if(orderData.isPresent()) {
-            Order _order = orderData.get();
-            _order.setStatus("Hold");
+            if(orderData.isPresent()) {
+                Order _order = orderData.get();
+                _order.setStatus(Constants.Status.APPROVED);
 
-            return new ResponseEntity<>(orderRepository.save(_order), HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+                return new ResponseEntity<>(orderRepository.save(_order), HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            }
+        } catch (HttpClientErrorException e) {
+            logger.error("Client Side Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.METHOD_NOT_ALLOWED);
+        } catch (HttpServerErrorException e) {
+            logger.error("Server Side Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+        } catch (Exception e) {
+            logger.error("General Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    @PutMapping("/orders/declined/{id}")
-    public ResponseEntity<Order> updateOrderDeclinedStatus(@PathVariable("id") String id) {
-        Optional<Order> orderData = orderRepository.findById(id);
+    @PutMapping(Constants.RequestMapping.HOLD_ORDERS_ID)
+    public ResponseEntity<Order> updateOrderHoldStatus(@PathVariable(Constants.Common.ID) String id) {
+        try {
+            Optional<Order> orderData = orderRepository.findById(id);
 
-        if(orderData.isPresent()) {
-            Order _order = orderData.get();
-            _order.setStatus("Declined");
+            if(orderData.isPresent()) {
+                Order _order = orderData.get();
+                _order.setStatus(Constants.Status.HOLD);
 
-            return new ResponseEntity<>(orderRepository.save(_order), HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+                return new ResponseEntity<>(orderRepository.save(_order), HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            }
+        } catch (HttpClientErrorException e) {
+            logger.error("Client Side Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.METHOD_NOT_ALLOWED);
+        } catch (HttpServerErrorException e) {
+            logger.error("Server Side Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+        } catch (Exception e) {
+            logger.error("General Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    @PutMapping("/orders/referred/{id}")
-    public ResponseEntity<Order> updateOrderReferredStatus(@PathVariable("id") String id) {
-        Optional<Order> orderData = orderRepository.findById(id);
+    @PutMapping(Constants.RequestMapping.DECLINED_ORDERS_ID)
+    public ResponseEntity<Order> updateOrderDeclinedStatus(@PathVariable(Constants.Common.ID) String id) {
+        try {
+            Optional<Order> orderData = orderRepository.findById(id);
 
-        if(orderData.isPresent()) {
-            Order _order = orderData.get();
-            _order.setStatus("Referred");
+            if(orderData.isPresent()) {
+                Order _order = orderData.get();
+                _order.setStatus(Constants.Status.DECLINED);
 
-            return new ResponseEntity<>(orderRepository.save(_order), HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+                return new ResponseEntity<>(orderRepository.save(_order), HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            }
+        } catch (HttpClientErrorException e) {
+            logger.error("Client Side Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.METHOD_NOT_ALLOWED);
+        } catch (HttpServerErrorException e) {
+            logger.error("Server Side Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+        } catch (Exception e) {
+            logger.error("General Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    @PutMapping("/orders/delivered/{id}")
-    public ResponseEntity<Order> updateOrderDeliveredStatus(@PathVariable("id") String id) {
-        Optional<Order> orderData = orderRepository.findById(id);
+    @PutMapping(Constants.RequestMapping.REFERRED_ORDERS_ID)
+    public ResponseEntity<Order> updateOrderReferredStatus(@PathVariable(Constants.Common.ID) String id) {
+        try {
+            Optional<Order> orderData = orderRepository.findById(id);
 
-        if(orderData.isPresent()) {
-            Order _order = orderData.get();
-            _order.setStatus("Delivered");
+            if(orderData.isPresent()) {
+                Order _order = orderData.get();
+                _order.setStatus(Constants.Status.REFERRED);
 
-            return new ResponseEntity<>(orderRepository.save(_order), HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+                return new ResponseEntity<>(orderRepository.save(_order), HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            }
+        } catch (HttpClientErrorException e) {
+            logger.error("Client Side Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.METHOD_NOT_ALLOWED);
+        } catch (HttpServerErrorException e) {
+            logger.error("Server Side Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+        } catch (Exception e) {
+            logger.error("General Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @PutMapping(Constants.RequestMapping.DELIVERED_ORDERS_ID)
+    public ResponseEntity<Order> updateOrderDeliveredStatus(@PathVariable(Constants.Common.ID) String id) {
+        try {
+            Optional<Order> orderData = orderRepository.findById(id);
+
+            if(orderData.isPresent()) {
+                Order _order = orderData.get();
+                _order.setStatus(Constants.Status.DELIVERED);
+
+                return new ResponseEntity<>(orderRepository.save(_order), HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            }
+        } catch (HttpClientErrorException e) {
+            logger.error("Client Side Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.METHOD_NOT_ALLOWED);
+        } catch (HttpServerErrorException e) {
+            logger.error("Server Side Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+        } catch (Exception e) {
+            logger.error("General Exception", e);
+            return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 }
